@@ -9,6 +9,6 @@ public class TestController {
     @GetMapping("/")
     public String home() {
 
-        return "github actions start!!!~";
+        return "hello world!";
     }
 }
