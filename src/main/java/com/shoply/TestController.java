@@ -9,6 +9,6 @@ public class TestController {
     @GetMapping("/")
     public String home() {
 
-        return "HELLO !!!!!! JAVA!!!!!!!!";
+        return "SIM KYU JIN";
     }
 }
