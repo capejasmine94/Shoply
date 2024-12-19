@@ -1,9 +1,10 @@
 name: Deploy To Ec2
+
 on:
   push:
     branches:
       - main
-      -
+
 jobs:
   Deploy:
     runs-on: ubuntu-latest
