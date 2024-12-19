@@ -9,10 +9,36 @@ jobs:
   Deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH(원격접속)로 EC2 접속
+      - name: Github Repository에 올린 파일들을 불러오기
+        uses: actions/checkout@v4
+
+      - name: JDK 17버전 설치
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin #jdk브랜드
+          java-version: 17
+
+      - name: apllication.yml 파일 만들어주기
+        run: echo "${{ secrets.$APPLICATION_PROPERTIES }}" > ./src/main/resources/application.yml
+
+      - name: 테스트 및 빌드하기
+        run: ./gradlew clean build
+
+      - name: 빌드된 파일 이름 변경하기
+        run: mv ./build/libs/*SNAPSHOT.jar ./project.jar
+
+      - name: SCP로 EC2에 빌드된 파일 전송하기 #EC2 파일 전송할때 쓰는 방식
+        uses: appleboy/scp-action@v0.1.7 #SCP로 전송을 할때는 SSH 를 기반으로 전송하는 방식이다보니 EC2에 대한 정보가 필요하다
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          source: project.jar #EC2에 전달되는 변경된 파일명
+          target: /home/ubuntu/shoply-server/tobe #EC2에 어떤 경로에 파일을 저장할것인가?
+
+
+      - name: SSH(원격접속)로 EC2에 접속하기
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          APPLICATION_PROPERTIES: ${{ secrets.APPLICATION_PROPERTIES }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
@@ -20,10 +46,10 @@ jobs:
           envs: APPLICATION_PROPERTIES
           script_stop: true
           script: |
-            cd /home/ubuntu/shoply
-            rm -rf src/main/resources/application.yml
-            git pull origin main
-            echo "$APPLICATION_PROPERTIES" > src/main/resources/application.yml
-            ./gradlew clean build
+            rm -rf /home/ubuntu/shoply-server/current 
+            mkdir /home/ubuntu/shoply-server/current
+            mv /home/ubuntu/shoply-server/tobe/project.jar /home/ubuntu/shoply-server/current/project.jar
+            cd /home/ubuntu/shoply-server/current
             sudo fuser -k -n tcp 8080 || true
-            nohup java -jar build/libs/*SNAPSHOT.jar > ./output.log 2>&1 &
+            nohup java -jar project.jar > ./output.log 2>&1 &
+            rm -rf /home/ubuntu/shoply-server/tobe
