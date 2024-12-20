@@ -1,48 +1,59 @@
-name: Deploy To Ec2
+name: Deploy To Ec2 # 워크플로 이름: EC2 배포
 
 on:
   push:
     branches:
-      - main
+      - main # main 브랜치에 push 이벤트가 발생하면 실행
 
 jobs:
   Deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # 작업을 실행할 OS 환경 지정 ( latest: 최신 ubuntu )
     steps:
-      - name: Github Repository에 올린 파일들을 불러오기
-        uses: actions/checkout@v4
+      - name: Github Repository에 올린 파일들을 불러오기 # 최신 코드를 가져오는 단계
+        uses: actions/checkout@v4 # Github Actions 플로그인으로 레포지토리 코드를 체크아웃
 
       - name: Test
         run: |
           ls
           pwd
 
-      - name: JDK 17버전 설치
+      - name: JDK 17버전 설치 # JDK 설치 ( 최신 코드를 먼저 받고 나서 작성해준다 )
         uses: actions/setup-java@v4
         with:
-          distribution: temurin #jdk브랜드
-          java-version: 17
+          distribution: temurin # 설치할 JDK 배포 브랜드
+          java-version: 17 # 설치할 JDK 버전
 
-      - name: apllication.yml 파일 만들어주기
+      - name: Create application.yml # application.yml 생성
         run: echo "${{ secrets.APPLICATION_PROPERTIES }}" > ./src/main/resources/application.yml
+        # GitHub Secrets에 저장된 APPLICATION_PROPERTIES 환경변수를 이용해 application.yml 생성
 
-      - name: 테스트 및 빌드하기
-        run: ./gradlew clean build
+      - name: Create application-db.yml # application-db.yml 생성
+        run: |
+          echo "spring:" > ./src/main/resources/application-db.yml
+          echo "  datasource:" >> ./src/main/resources/application-db.yml
+          echo "    url:  ${{ secrets.DB_URL }}" >> ./src/main/resources/application-db.yml
+          echo "    username: ${{ secrets.DB_USERNAME }}" >> ./src/main/resources/application-db.yml
+          echo "    password: ${{ secrets.DB_PASSWORD }}" >> ./src/main/resources/application-db.yml
+          echo "    driver-class-name: org.mariadb.jdbc.Driver" >> ./src/main/resources/application-db.yml
 
-      - name: 빌드된 파일 이름 변경하기
-        run: mv ./build/libs/*SNAPSHOT.jar ./project.jar
+      - name: 테스트 및 빌드하기 # 빌드 실행 단계
+        run: ./gradlew clean build # Gradle 명령으로 기존 빌드 삭제 후 새로 빌드
 
-      - name: SCP로 EC2에 빌드된 파일 전송하기 #EC2 파일 전송할때 쓰는 방식
-        uses: appleboy/scp-action@v0.1.7 #SCP로 전송을 할때는 SSH 를 기반으로 전송하는 방식이다보니 EC2에 대한 정보가 필요하다
+      - name: 빌드된 파일 이름 변경하기 # 빌드 결과물의 파일 이름을 변경하여 관리 용이성 향상
+        run: mv ./build/libs/*SNAPSHOT.jar ./project.jar # SNAPSHOT 파일을 project.jar로 이름 변경
+
+
+      - name: SCP로 EC2에 빌드된 파일 전송하기 # 빌드 결과물을 EC2로 전송하는 단계 ( SCP : 파일 전송 프로토콜 )
+        uses: appleboy/scp-action@v0.1.7 # GitHub Actions에서 SCP 전송을 지원하는 플러그인 사용
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key: ${{ secrets.EC2_PRIVATE_KEY }}
-          source: project.jar #EC2에 전달되는 변경된 파일명
-          target: /home/ubuntu/shoply-server/tobe #EC2에 어떤 경로에 파일을 저장할것인가?
+          host: ${{ secrets.EC2_HOST }} # EC2 서버의 IP 또는 도메인 ( 접속 대상 )
+          username: ${{ secrets.EC2_USERNAME }} # EC2에 접속할 사용자 이름 ( 기본 : ubuntu )
+          key: ${{ secrets.EC2_PRIVATE_KEY }} # EC2에 접속하기 위한 개인 키 (SSH 인증 )
+          source: project.jar # EC2에 전송할 빌드 결과물
+          target: /home/ubuntu/shoply-server/tobe # EC2에 전송된 결과물을 저장할 경로
 
 
-      - name: SSH(원격접속)로 EC2에 접속하기
+      - name: SSH(원격접속)로 EC2에 접속하기 # 배포를 하기위한 접근
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
